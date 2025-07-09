@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for
+from flask_cors import CORS
 import json
 from ecjtu import ECJTU
 from datetime import datetime
@@ -10,6 +11,9 @@ import time
 
 app = Flask(__name__)
 app.secret_key = 'ecjtu_secret_key_2024'  # 用于session管理
+
+# 启用CORS
+CORS(app)
 
 # 阿里云API KEY
 AL_API_KEY = 'sk-dcbb7246ac3f402994454b91120b95ab'
