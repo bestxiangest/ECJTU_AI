@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课程表 - ECJTU 学生成绩分析系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 0;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .navbar .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h1 {
+            color: #667eea;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: #666;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .logout-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: #ff5252;
+            transform: translateY(-2px);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .welcome-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .welcome-section h2 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2rem;
+        }
+
+        .welcome-section p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .schedule-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        .semester-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .semester-tab {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            color: #666;
+            padding: 10px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .semester-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .schedule-container {
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+
+        .schedule-table {
+            width: 100%;
+            min-width: 800px;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .schedule-table th,
+        .schedule-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .schedule-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .schedule-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .course-type {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .course-type.required {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .course-type.elective {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .course-type.optional {
+            background: #e8f5e8;
+            color: #388e3c;
+        }
+
+        .course-info {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .credit-badge {
+            background: #fff3e0;
+            color: #f57c00;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .analysis-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        .analysis-content {
+            line-height: 1.6;
+        }
+
+        .analysis-section h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .analysis-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .analysis-card h4 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+
+        .analysis-card p {
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .analysis-card ul {
+            color: #666;
+            padding-left: 20px;
+        }
+
+        .analysis-card li {
+            margin-bottom: 5px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        @media (max-width: 768px) {
+            .navbar .container {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .nav-links {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .container {
+                padding: 10px;
+            }
+
+            .welcome-section {
+                padding: 20px;
+            }
+
+            .welcome-section h2 {
+                font-size: 1.5rem;
+            }
+
+            .semester-tabs {
+                justify-content: center;
+            }
+
+            .schedule-table {
+                min-width: 600px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .semester-tab {
+                padding: 8px 16px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <h1>📅 ECJTU 课程表系统</h1>
+            <div class="nav-links">
+                <a href="/dashboard">📊 成绩分析</a>
+                <a href="/schedule">📅 课程表</a>
+                <span id="studentInfo">学号: 加载中...</span>
+                <button class="logout-btn" onclick="logout()">退出登录</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="welcome-section">
+            <h2>📅 课程表管理</h2>
+            <p>查看当前学期和下学期的课程安排，获取AI智能规划建议</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn" onclick="loadSchedule()">📅 获取课程表</button>
+            <button class="btn" onclick="analyzeSchedule()">🤖 AI 课程规划</button>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>正在处理中，请稍候...</p>
+            </div>
+        </div>
+
+        <div id="schedule-section" class="schedule-section">
+            <h3>📅 课程安排</h3>
+            <div class="stats-grid" id="scheduleStats">
+                <!-- 统计数据将在这里动态生成 -->
+            </div>
+            
+            <div class="semester-tabs" id="semesterTabs">
+                <!-- 学期标签将通过JavaScript动态生成 -->
+            </div>
+            
+            <div class="schedule-container">
+                <table class="schedule-table" id="scheduleTable">
+                    <thead>
+                        <tr>
+                            <th>课程名称</th>
+                            <th>课程类型</th>
+                            <th>学分</th>
+                            <th>教师</th>
+                            <th>上课时间</th>
+                            <th>考核方式</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scheduleTableBody">
+                        <!-- 课程数据将通过JavaScript动态生成 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="analysis-section" class="analysis-section">
+            <h3>🤖 AI 课程规划建议</h3>
+            <div class="loading" id="analysisLoading">
+                <div class="spinner"></div>
+                <p>AI正在分析您的课程安排，请稍候...</p>
+            </div>
+            <div class="analysis-content" id="analysisContent">
+                <!-- AI分析结果将在这里显示 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let scheduleData = null;
+        let currentSemester = null;
+
+        // 页面加载时获取学生信息
+        window.onload = function() {
+            const studentId = sessionStorage.getItem('student_id') || '未知';
+            document.getElementById('studentInfo').textContent = `学号: ${studentId}`;
+        };
+
+        function logout() {
+            fetch('/logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    sessionStorage.clear();
+                    window.location.href = '/login';
+                } else {
+                    alert('登出失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('登出错误:', error);
+                alert('登出时发生错误');
+            });
+        }
+
+        function loadSchedule() {
+            const loading = document.getElementById('loading');
+            loading.style.display = 'block';
+
+            fetch('/api/schedule')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    loading.style.display = 'none';
+                    
+                    if (data.success) {
+                        scheduleData = data;
+                        displaySchedule(data);
+                        document.getElementById('schedule-section').style.display = 'block';
+                    } else {
+                        alert('获取课程表失败: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    loading.style.display = 'none';
+                    console.error('获取课程表错误:', error);
+                    alert('获取课程表时发生错误: ' + error.message);
+                });
+        }
+
+        function displaySchedule(data) {
+            displayScheduleStats(data);
+            createSemesterTabs(data);
+        }
+
+        function displayScheduleStats(data) {
+            const statsContainer = document.getElementById('scheduleStats');
+            const semesters = Object.keys(data.data);
+            
+            let totalCourses = 0;
+            let totalCredits = 0;
+            
+            Object.values(data.data).forEach(semester => {
+                totalCourses += semester.course_count;
+                semester.courses.forEach(course => {
+                    totalCredits += course.credit;
+                });
+            });
+            
+            statsContainer.innerHTML = `
+                <div class="stat-card">
+                    <div class="number">${semesters.length}</div>
+                    <div class="label">学期数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">${totalCourses}</div>
+                    <div class="label">总课程数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">${totalCredits}</div>
+                    <div class="label">总学分</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">${(totalCredits / semesters.length).toFixed(1)}</div>
+                    <div class="label">平均学分/学期</div>
+                </div>
+            `;
+        }
+
+        function createSemesterTabs(data) {
+            const tabsContainer = document.getElementById('semesterTabs');
+            const semesters = Object.keys(data.data).sort();
+            
+            tabsContainer.innerHTML = '';
+            
+            semesters.forEach((semester, index) => {
+                const tab = document.createElement('button');
+                tab.className = 'semester-tab';
+                tab.textContent = `${semester} 学期`;
+                tab.onclick = () => showSemesterSchedule(semester);
+                
+                if (index === 0) {
+                    tab.classList.add('active');
+                    currentSemester = semester;
+                }
+                
+                tabsContainer.appendChild(tab);
+            });
+            
+            // 显示第一个学期的课程
+            if (currentSemester) {
+                console.log(currentSemester);
+                showSemesterSchedule(currentSemester);
+            }
+        }
+
+        function showSemesterSchedule(semester) {
+            currentSemester = semester;
+            
+            // 更新标签状态
+            document.querySelectorAll('.semester-tab').forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.textContent.includes(semester)) {
+                    tab.classList.add('active');
+                }
+            });
+            
+            // 显示课程表
+            const tableBody = document.getElementById('scheduleTableBody');
+            const semesterData = scheduleData.data[semester];
+            
+            tableBody.innerHTML = '';
+            
+            semesterData.courses.forEach(course => {
+                const row = document.createElement('tr');
+                
+                // 从class_name中提取课程名称
+                // class_name格式: "课程名称(学期代码)【班级】"
+                let courseName = '未知课程';
+                
+                if (course.course) {
+                    courseName = course.course;
+                } else if (course.course_name) {
+                    courseName = course.course_name;
+                } else if (course.class_name && course.class_name.trim()) {
+                    // 提取课程名称：移除括号及其内容
+                    courseName = course.class_name.replace(/\([^)]*\).*$/, '').trim();
+                    if (!courseName) {
+                        courseName = course.class_name.trim();
+                    }
+                } else {
+                    // 如果class_name为空，尝试使用其他信息
+                    courseName = `课程 ${course.class_number || '未知编号'}`;
+                }
+                
+                // 调试信息：在控制台输出课程信息
+                if (!course.class_name || !course.class_name.trim()) {
+                    console.log('发现空课程名称:', course);
+                }
+                
+                // 确定课程类型样式
+                let typeClass = 'required';
+                if (course.class_type.includes('选')) {
+                    typeClass = course.class_type.includes('限') ? 'elective' : 'optional';
+                }
+                
+                row.innerHTML = `
+                    <td>
+                        <div><strong>${courseName}</strong></div>
+                    </td>
+                    <td>
+                        <span class="course-type ${typeClass}">${course.class_type}</span>
+                    </td>
+                    <td>
+                        <span class="credit-badge">${course.credit} 学分</span>
+                    </td>
+                    <td>${course.teacher}</td>
+                    <td>
+                        <div class="course-info">${course.class_info || '待安排'}</div>
+                    </td>
+                    <td>${course.class_assessment_method}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+
+        function analyzeSchedule() {
+            if (!scheduleData) {
+                alert('请先获取课程表数据');
+                return;
+            }
+
+            const analysisLoading = document.getElementById('analysisLoading');
+            const analysisContent = document.getElementById('analysisContent');
+            
+            document.getElementById('analysis-section').style.display = 'block';
+            analysisLoading.style.display = 'block';
+            analysisContent.innerHTML = '';
+
+            fetch('/api/analyze_schedule', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    schedule_data: scheduleData
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                analysisLoading.style.display = 'none';
+                
+                if (data.success) {
+                    if (data.analysis) {
+                        displayAnalysisResult(data.analysis);
+                    } else if (data.analysis_text) {
+                        analysisContent.innerHTML = `<div class="analysis-card"><pre>${data.analysis_text}</pre></div>`;
+                    }
+                } else {
+                    analysisContent.innerHTML = `<div class="analysis-card"><p style="color: #ff6b6b;">分析失败: ${data.message}</p></div>`;
+                }
+            })
+            .catch(error => {
+                analysisLoading.style.display = 'none';
+                console.error('AI分析错误:', error);
+                analysisContent.innerHTML = `<div class="analysis-card"><p style="color: #ff6b6b;">AI分析时发生错误: ${error.message}</p></div>`;
+            });
+        }
+
+        function displayAnalysisResult(analysis) {
+            const analysisContent = document.getElementById('analysisContent');
+            
+            let html = '';
+            
+            // 学期概览
+            if (analysis.semesterOverview) {
+                html += `
+                    <div class="analysis-card">
+                        <h4>📊 学期概览</h4>
+                        <p><strong>当前学期 (${analysis.semesterOverview.currentSemester?.semester}):</strong> 
+                           ${analysis.semesterOverview.currentSemester?.totalCourses} 门课程，
+                           ${analysis.semesterOverview.currentSemester?.totalCredits} 学分，
+                           负荷评估: ${analysis.semesterOverview.currentSemester?.workloadAssessment}</p>
+                        <p><strong>下学期 (${analysis.semesterOverview.nextSemester?.semester}):</strong> 
+                           ${analysis.semesterOverview.nextSemester?.totalCourses} 门课程，
+                           ${analysis.semesterOverview.nextSemester?.totalCredits} 学分，
+                           负荷评估: ${analysis.semesterOverview.nextSemester?.workloadAssessment}</p>
+                    </div>
+                `;
+            }
+            
+            // 课程类型分析
+            if (analysis.courseTypeAnalysis) {
+                html += `
+                    <div class="analysis-card">
+                        <h4>📚 课程类型分析</h4>
+                        <p><strong>必修课程:</strong> ${analysis.courseTypeAnalysis.requiredCourses}</p>
+                        <p><strong>选修课程:</strong> ${analysis.courseTypeAnalysis.electiveCourses}</p>
+                        <p><strong>平衡性评估:</strong> ${analysis.courseTypeAnalysis.balanceAssessment}</p>
+                    </div>
+                `;
+            }
+            
+            // 时间管理
+            if (analysis.timeManagement) {
+                html += `
+                    <div class="analysis-card">
+                        <h4>⏰ 时间管理</h4>
+                        <p><strong>课程密集度:</strong> ${analysis.timeManagement.scheduleIntensity}</p>
+                        <p><strong>潜在冲突:</strong> ${analysis.timeManagement.potentialConflicts}</p>
+                        <p><strong>建议:</strong> ${analysis.timeManagement.suggestions}</p>
+                    </div>
+                `;
+            }
+            
+            // 学习路径
+            if (analysis.learningPathway) {
+                html += `
+                    <div class="analysis-card">
+                        <h4>🎯 学习路径</h4>
+                        <p><strong>核心课程:</strong></p>
+                        <ul>
+                            ${analysis.learningPathway.coreSubjects?.map(subject => `<li>${subject}</li>`).join('') || '<li>暂无数据</li>'}
+                        </ul>
+                        <p><strong>技能发展:</strong> ${analysis.learningPathway.skillDevelopment}</p>
+                        <p><strong>准备建议:</strong> ${analysis.learningPathway.preparationAdvice}</p>
+                    </div>
+                `;
+            }
+            
+            // 个性化建议
+            if (analysis.personalizedRecommendations) {
+                html += `
+                    <div class="analysis-card">
+                        <h4>💡 个性化建议</h4>
+                        <p><strong>学习策略:</strong></p>
+                        <ul>
+                            ${analysis.personalizedRecommendations.studyStrategy?.map(strategy => `<li>${strategy}</li>`).join('') || '<li>暂无数据</li>'}
+                        </ul>
+                        <p><strong>时间分配:</strong></p>
+                        <ul>
+                            ${analysis.personalizedRecommendations.timeAllocation?.map(allocation => `<li>${allocation}</li>`).join('') || '<li>暂无数据</li>'}
+                        </ul>
+                        <p><strong>资源利用:</strong></p>
+                        <ul>
+                            ${analysis.personalizedRecommendations.resourceUtilization?.map(resource => `<li>${resource}</li>`).join('') || '<li>暂无数据</li>'}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            // 学期目标
+            if (analysis.semesterGoals) {
+                html += `
+                    <div class="analysis-card">
+                        <h4>🎯 学期目标</h4>
+                        <p><strong>当前学期重点:</strong> ${analysis.semesterGoals.currentSemesterFocus}</p>
+                        <p><strong>下学期准备:</strong> ${analysis.semesterGoals.nextSemesterPreparation}</p>
+                        <p><strong>长期规划:</strong> ${analysis.semesterGoals.longTermPlanning}</p>
+                    </div>
+                `;
+            }
+            
+            analysisContent.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

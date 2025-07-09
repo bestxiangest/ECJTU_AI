@@ -145,29 +145,49 @@ print(semester_scores)
 #### 获取当前学期选修课程
 
 ```python
-from typing import List
-from ecjtu import ElectiveCourse
+courses = client.elective_courses.today()
 
-# 获取当前学期的选修课程
-elective_courses: List[ElectiveCourse] = client.elective_courses.today()
-
-for course in elective_courses:
-    print(f"课程名称: {course.class_name}")
-    print(f"学期: {course.semester}")
-    print(f"课程类型: {course.class_type}")
-    print(f"考核方式: {course.class_assessment_method}")
-    print(f"上课信息: {course.class_info}")
-    print(f"学分: {course.credit}")
-    print(f"教师: {course.teacher}")
-    print("-" * 30)
+for course in courses:
+    print(course)
+```
+返回值示例：
+```
+semester='2023.2' class_name='创新创业过程与方法(20232-23)【小2班】' class_type='必修课' class_assessment_method='考查' class_info='第1-4周 星期一 第7,8节[31-313]' class_number='19' credit=0.5 teacher='游永忠'
+semester='2023.2' class_name='材料力学(B)(20232-1)【小1班】' class_type='必修课' class_assessment_method='考试' class_info='第1-15周 星期三 第3,4节[31-504]|第1-15周 星期四 第3,4节(双)[31-509]|第1-15周 星期五 第1,2节[31-504]' class_number='11' credit=4.5 teacher='程俊峰'
+semester='2023.2' class_name='工程地质学(20232-1)【小1班】' class_type='限选课' class_assessment_method='考查' class_info='第1-12周 星期一 第3,4节[31-510]' class_number='7' credit=1.5 teacher='黄龙华'
+semester='2023.2' class_name='测量学（A）(20232-2)【小1班】' class_type='必修课' class_assessment_method='考查' class_info='第1-16周 星期二 第3,4节[31-411A]|第1-16周 星期四 第3,4节(单)[31-411A]' class_number='7' credit=3.0 teacher='陈云锅'
+semester='2023.2' class_name='测量实习(A)(20232-8)【小1班】' class_type='必修课' class_assessment_method='考查' class_info='' class_number='7' credit=2.0 teacher='陈云锅'
+semester='2023.2' class_name='形势与政策Ⅳ(20232-53)【小2班】' class_type='必修课' class_assessment_method='考查' class_info='第3-6周 星期四 第5,6节[31-304]' class_number='22' credit=0.5 teacher='周可颐'
+semester='2023.2' class_name='计算方法(B)(20232-2)【小1班】' class_type='限选课' class_assessment_method='考查' class_info='第1-16周 星期三 第5,6节[31-503]' class_number='7' credit=2.0 teacher='邓志刚'
+semester='2023.2' class_name='软件工程（B）(20232-2)【小1班】' class_type='必修课' class_assessment_method='考查' class_info='第1-16周 星期二 第5,6节[31-313]' class_number='7' credit=2.0 teacher='刘冲'
+semester='2023.2' class_name='数据库系统原理(20232-2)【小1班】' class_type='必修课' class_assessment_method='考试' class_info='第1-16周 星期二 第1,2节(单)[31-505]|第1-16周 星期五 第5,6节[31-505]' class_number='12' credit=3.0 teacher='魏永丰'
+semester='2023.2' class_name='Java程序设计(B)(20232-2)【小1班】' class_type='限选课' class_assessment_method='考查' class_info='第1-16周 星期四 第7,8节(单)[31-311E]|第1-16周 星期五 第3,4节[31-311D]' class_number='7' credit=3.0 teacher='王珏'
+semester='2023.2' class_name='综合课程设计Ⅱ(20232-10)【小1班】' class_type='必修课' class_assessment_method='考查' class_info='' class_number='7' credit=2.0 teacher='王珏'
+semester='2023.2' class_name='日语(2022-1)【小3班】' class_type='必修课' class_assessment_method='考试' class_info='第1-16周 星期四 第9,10节[25-121]' class_number='21' credit=2.0 teacher='谢幸荣(1-16)'
+semester='2023.2' class_name='定向越野Ⅳ(20232-1)【小1班】' class_type='必修课' class_assessment_method='考查' class_info='第1-16周 星期三 第7,8节[北区田径场3]' class_number='14' credit=1.0 teacher='余振东'
 ```
 
 #### 获取指定学期选修课程
 
 ```python
 # 获取指定学期的选修课程
-semester_electives = client.elective_courses.filter(semester="2023.2")
-print(semester_electives)
+courses = client.elective_courses.filter(semester="2022.1")
+
+for course in courses:
+    print(course)
+```
+返回值示例：
+```
+semester='2022.1' class_name='Linux应用与编程(20221-1)【小1班】' class_type='必修课' class_assessment_method='考查' class_info='第1-16周 星期一 第3,4节[25-424]' class_number='2' credit=2.0 teacher='李光辉'
+semester='2022.1' class_name='Java语言程序设计(20221-1)【小1班】' class_type='限选课' class_assessment_method='考查' class_info='第1-16周 星期二 第3,4节[25-201]' class_number='2' credit=2.0 teacher='丁振凡'
+semester='2022.1' class_name='单片机原理及接口技术(20221-1)【小1班】' class_type='必修课' class_assessment_method='考试' class_info='第1-14周 星期三 第3,4节[25-201]|第1-14周 星期一 第5,6节[14-103]' class_number='3' credit=3.5 teacher='陈梅'
+semester='2022.1' class_name='物联网控制技术(20221-1)【小1班】' class_type='必修课' class_assessment_method='考查' class_info='第1-16周 星期三 第1,2节[25-404]' class_number='2' credit=2.0 teacher='谭林丰'
+semester='2022.1' class_name='单片机原理及接口技术课程设计(20221-1)【小1班】' class_type='必修课' class_assessment_method='考查' class_info='' class_number='2' credit=1.0 teacher='周洁'
+semester='2022.1' class_name='物联网系统实习(20221-1)【小1班】' class_type='必修课' class_assessment_method='考查' class_info='' class_number='2' credit=2.0 teacher='柳凌峰'
+semester='2022.1' class_name='毛泽东思想和中国特色社会主义理论体系概论(20221-2)【小3班】' class_type='必修课' class_assessment_method='考试' class_info='第1-16周 星期二 第1,2节(双)[14-212]|第1-16周 星期三 第5,6节[14-408]|第1-16周 星期四 第5,6节[10-113]' class_number='11' credit=5.0 teacher='刘佳'
+semester='2022.1' class_name='操作系统(20221-1)【小1班】' class_type='学科任选课' class_assessment_method='考查' class_info='第1-16周 星期五 第3,4节[14-109]' class_number='2' credit=2.0 teacher='舒文豪'
+semester='2022.1' class_name='算法设计与分析(20221-1)【小1班】' class_type='专业任选课' class_assessment_method='考查' class_info='第1-16周 星期五 第1,2节[25-202]' class_number='2' credit=2.0 teacher='李广丽'
+semester='2022.1' class_name='动态网站开发(20221-1)【小1班】' class_type='专业任选课' class_assessment_method='考查' class_info='第1-16周 星期二 第5,6节[25-406]' class_number='3' credit=2.0 teacher='曾辉'
 ```
 
 ## 异步支持

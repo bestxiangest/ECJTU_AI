@@ -47,6 +47,20 @@
             gap: 15px;
         }
 
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .nav-link:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-1px);
+        }
+
         .logout-btn {
             background: rgba(255,255,255,0.2);
             color: white;
@@ -325,6 +339,8 @@
         <div class="container">
             <h1>ECJTU 学生成绩分析系统</h1>
             <div class="user-info">
+                <a href="/dashboard" class="nav-link">📊 成绩分析</a>
+                <a href="/schedule" class="nav-link">📅 课程表</a>
                 <span id="studentInfo">学号: 加载中...</span>
                 <button class="logout-btn" onclick="logout()">退出登录</button>
             </div>

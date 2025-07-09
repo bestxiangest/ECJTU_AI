@@ -282,10 +282,10 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showMessage('登录成功！正在跳转...', 'success');
+                    showMessage('登录成功！正在跳转到课程表...', 'success');
                     // 延迟跳转，让用户看到成功消息
                     setTimeout(() => {
-                        window.location.href = '/dashboard';
+                        window.location.href = '/schedule';
                     }, 1500);
                 } else {
                     showMessage(result.message || '登录失败，请检查学号和密码', 'error');

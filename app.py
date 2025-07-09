@@ -237,6 +237,44 @@ def get_scores_api():
     return jsonify(result)
 
 
+@app.route('/api/schedule')
+@login_required
+@handle_errors
+def get_schedule_api():
+    """获取学生课程表的API接口"""
+    global current_client, current_student_id
+
+    logger.info(f"用户 {current_student_id} 请求获取课程表数据")
+
+    # 入学时间
+    enrollment_time = int(current_student_id[0:4])
+    logger.info(f"入学时间: {enrollment_time}")
+
+    # 获取当前学期和下学期的课程表
+    schedule_data = get_current_and_next_semester_schedule(current_client, enrollment_time)
+
+    # 构建返回的JSON数据
+    result = {
+        "success": True,
+        "message": "课程表获取成功",
+        "student_id": current_student_id,
+        "enrollment_year": enrollment_time,
+        "data": schedule_data
+    }
+
+    logger.info(f"成功返回课程表数据")
+    return jsonify(result)
+
+
+@app.route('/schedule')
+def schedule_page():
+    """课程表页面"""
+    if not session.get('logged_in'):
+        return redirect(url_for('login_page'))
+
+    return render_template('schedule.html')
+
+
 def get_all_scores(client, start_year):
     """获取从指定年份开始的所有学期成绩，返回按学期分组的JSON格式数据"""
     scores_by_semester = {}
@@ -286,10 +324,63 @@ def get_all_scores(client, start_year):
     return scores_by_semester
 
 
+def get_current_and_next_semester_schedule(client, start_year):
+    """获取当前学期和下学期的课程表数据"""
+    schedule_data = {}
+    current_year = datetime.now().year
+    current_month = datetime.now().month
+
+    # 修正学期判断逻辑：基于实际学年制度
+    # 学年制度：2024.9-2025.1为2025.1学期，2025.2-2025.8为2024.2学期（包含暑假）
+    if current_month >= 9:  # 9月及以后为下一年的第一学期
+        academic_year = current_year + 1
+        current_semester_str = f"{academic_year}.1"
+        next_semester_str = f"{academic_year}.2"
+    elif current_month >= 2:  # 2-8月为上一年的第二学期（包含暑假）
+        academic_year = current_year - 1
+        current_semester_str = f"{academic_year}.2"
+        next_semester_str = f"{current_year}.1"
+    else:  # 1月为上一年的第二学期
+        academic_year = current_year - 1
+        current_semester_str = f"{academic_year}.2"
+        next_semester_str = f"{current_year}.1"
+
+    semesters_to_fetch = [current_semester_str, next_semester_str]
+
+    for semester_str in semesters_to_fetch:
+        try:
+            courses = client.elective_courses.filter(semester=semester_str)
+            if courses:  # 如果该学期有课程
+                # 将ElectiveCourse对象转换为字典格式
+                semester_courses = []
+                for course in courses:
+                    course_dict = {
+                        "class_name": course.class_name,
+                        "class_type": course.class_type,
+                        "class_assessment_method": course.class_assessment_method,
+                        "class_info": course.class_info,
+                        "class_number": course.class_number,
+                        "credit": course.credit,
+                        "teacher": course.teacher
+                    }
+                    semester_courses.append(course_dict)
+
+                schedule_data[semester_str] = {
+                    "semester": semester_str,
+                    "course_count": len(courses),
+                    "courses": semester_courses
+                }
+                logger.info(f"找到 {semester_str} 学期课程表：{len(courses)} 门课程")
+        except Exception as e:
+            logger.error(f"获取 {semester_str} 学期课程表失败：{e}")
+
+    return schedule_data
+
+
 # 大模型部分
 
-# 提示词
-PROMPT = '''
+# 成绩分析提示词
+SCORE_ANALYSIS_PROMPT = '''
 你是一位资深的大学学业导师和数据分析专家。你的任务是分析一名学生从入学至今的完整成绩单（以JSON格式提供），并生成一份全面、积极、富有建设性的学业评估报告。
 
 **核心指令：**
@@ -356,6 +447,88 @@ PROMPT = '''
     * 在指出不足时，使用“有待提升”、“可以进一步巩固”等建设性词语，而非“差”、“不及格”等负面词汇。
 
 现在，请根据用户提供的学生成绩JSON数据，开始分析并生成报告。
+        '''
+
+# 课程表分析提示词
+SCHEDULE_ANALYSIS_PROMPT = '''
+你是一位资深的大学学业规划导师和课程安排专家。你的任务是分析学生当前学期和下学期的课程安排（以JSON格式提供），并生成一份全面、实用的课程规划建议报告。
+
+**核心指令：**
+
+1. **数据预处理：**
+   * 在分析前，你需要理解课程信息的结构，包括课程名称、类型、学分、上课时间等。
+   * 在报告中引用课程名称时，必须**移除**名称中的课程代码和括号，例如，将 "Java程序设计(B)(20232-2)【小1班】" 清理为 "Java程序设计"。
+
+2. **分析维度：**
+   * **课程负荷分析：** 分析每学期的总学分、课程数量，评估学习负荷是否合理。
+   * **课程类型分布：** 分析必修课、限选课、专业任选课等的分布情况。
+   * **时间安排分析：** 根据class_info字段分析上课时间分布，识别可能的时间冲突或过于密集的安排。
+   * **学习连贯性：** 分析课程之间的逻辑关系和先后顺序。
+
+3. **输出格式（必须严格遵守）：**
+   * 你的回复**必须且只能是**一个格式化良好的JSON对象。
+   * 禁止在JSON对象前后添加任何说明性文字、注释或Markdown标记。
+   * JSON对象的结构必须严格遵循以下定义：
+   ```json
+   {
+     "studentId": "学生的学号，从输入中获取",
+     "reportTitle": "课程安排规划建议报告",
+     "semesterOverview": {
+       "currentSemester": {
+         "semester": "当前学期标识",
+         "totalCourses": "课程总数",
+         "totalCredits": "总学分",
+         "workloadAssessment": "对学习负荷的评估（轻松/适中/繁重）"
+       },
+       "nextSemester": {
+         "semester": "下学期标识",
+         "totalCourses": "课程总数",
+         "totalCredits": "总学分",
+         "workloadAssessment": "对学习负荷的评估（轻松/适中/繁重）"
+       }
+     },
+     "courseTypeAnalysis": {
+       "requiredCourses": "必修课程数量和重要性分析",
+       "electiveCourses": "选修课程数量和选择建议",
+       "balanceAssessment": "课程类型平衡性评估"
+     },
+     "timeManagement": {
+       "scheduleIntensity": "课程时间安排密集度评估",
+       "potentialConflicts": "可能的时间冲突或问题",
+       "suggestions": "时间管理建议"
+     },
+     "learningPathway": {
+       "coreSubjects": [
+         "列出1-3门核心重点课程"
+       ],
+       "skillDevelopment": "技能发展重点",
+       "preparationAdvice": "学习准备建议"
+     },
+     "personalizedRecommendations": {
+       "studyStrategy": [
+         "针对课程安排的1-2条学习策略建议"
+       ],
+       "timeAllocation": [
+         "时间分配的1-2条具体建议"
+       ],
+       "resourceUtilization": [
+         "学习资源利用的1-2条建议"
+       ]
+     },
+     "semesterGoals": {
+       "currentSemesterFocus": "当前学期的学习重点",
+       "nextSemesterPreparation": "下学期的准备建议",
+       "longTermPlanning": "长期学业规划建议"
+     }
+   }
+   ```
+
+4. **语言风格：**
+   * 报告的整体基调必须是积极、正面、鼓励为主。
+   * 提供具体、可操作的建议，避免空泛的表述。
+   * 关注学生的全面发展和学业规划。
+
+现在，请根据用户提供的学生课程表JSON数据，开始分析并生成报告。
         '''
 
 
@@ -454,7 +627,7 @@ def analyze_scores():
 
     # 构建AI对话消息
     messages = [
-        {'role': 'system', 'content': PROMPT},
+        {'role': 'system', 'content': SCORE_ANALYSIS_PROMPT},
         {'role': 'user', 'content': f"请分析以下学生成绩数据：\n{scores_json}"}
     ]
 
@@ -484,6 +657,77 @@ def analyze_scores():
             "success": False,
             "message": "AI分析失败，请稍后重试",
             "raw_scores": scores_data
+        }), 500
+
+
+@app.route('/api/analyze_schedule', methods=['GET', 'POST'])
+@login_required
+@handle_errors
+def analyze_schedule():
+    """AI分析学生课程表"""
+    global current_client, current_student_id
+
+    logger.info(f"用户 {current_student_id} 请求AI课程表分析")
+
+    # 检查是否通过POST传递了课程表数据
+    if request.method == 'POST' and request.json and 'schedule_data' in request.json:
+        # 使用传递的课程表数据
+        schedule_data = request.json['schedule_data']
+        logger.info("使用前端传递的课程表数据，避免重复调用API")
+    else:
+        # 获取学生课程表数据（兼容GET请求）
+        enrollment_time = int(current_student_id[0:4])
+        schedule_data = get_current_and_next_semester_schedule(current_client, enrollment_time)
+
+        if not schedule_data:
+            return jsonify({
+                "success": False,
+                "message": "未找到课程表数据",
+                "data": None
+            }), 404
+
+        # 构建发送给AI的课程表数据
+        schedule_data = {
+            "student_id": current_student_id,
+            "enrollment_year": enrollment_time,
+            "data": schedule_data
+        }
+
+    # 将课程表数据转换为JSON字符串发送给AI
+    schedule_json = json.dumps(schedule_data, ensure_ascii=False, indent=2)
+
+    # 构建AI对话消息
+    messages = [
+        {'role': 'system', 'content': SCHEDULE_ANALYSIS_PROMPT},
+        {'role': 'user', 'content': f"请分析以下学生课程表数据：\n{schedule_json}"}
+    ]
+
+    # 调用AI分析
+    ai_response = call_qwen(messages)
+
+    if ai_response:
+        try:
+            # 尝试解析AI返回的JSON
+            analysis_result = json.loads(ai_response)
+            return jsonify({
+                "success": True,
+                "message": "课程表分析完成",
+                "raw_schedule": schedule_data,
+                "analysis": analysis_result
+            })
+        except json.JSONDecodeError:
+            # 如果AI返回的不是有效JSON，返回原始文本
+            return jsonify({
+                "success": True,
+                "message": "课程表分析完成（文本格式）",
+                "raw_schedule": schedule_data,
+                "analysis_text": ai_response
+            })
+    else:
+        return jsonify({
+            "success": False,
+            "message": "AI分析失败，请稍后重试",
+            "raw_schedule": schedule_data
         }), 500
 
 
@@ -532,7 +776,7 @@ def chat():
                 # 对话超时，重新开始
                 conversations[user_id] = [{
                     'role': 'system',
-                    'content': PROMPT
+                    'content': SCORE_ANALYSIS_PROMPT
                 }]
                 logger.info(f"用户 {user_id} 的对话已超时，已重置")
             last_interaction[user_id] = current_time
@@ -540,7 +784,7 @@ def chat():
             # 新用户，创建新的对话
             conversations[user_id] = [{
                 'role': 'system',
-                'content': PROMPT
+                'content': SCORE_ANALYSIS_PROMPT
             }]
             last_interaction[user_id] = current_time
             logger.info(f"为用户 {user_id} 创建新的对话")
@@ -635,6 +879,8 @@ def system_info():
                 "active_conversations": len(conversations)
             }
         })
+
+
 
 
 if __name__ == '__main__':

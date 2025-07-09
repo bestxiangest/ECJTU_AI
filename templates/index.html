@@ -20,6 +20,49 @@
             color: #333;
         }
 
+        .navbar {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 0;
+            margin-bottom: 20px;
+            border-radius: 15px;
+        }
+
+        .navbar .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h1 {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -235,6 +278,18 @@
     </style>
 </head>
 <body>
+    <nav class="navbar">
+        <div class="container">
+            <h1>🎓 ECJTU AI</h1>
+            <div class="nav-links">
+                <a href="/" class="nav-link">🏠 首页</a>
+                <a href="/dashboard" class="nav-link">📊 成绩分析</a>
+                <a href="/schedule" class="nav-link">📅 课程表</a>
+                <a href="/login" class="nav-link">🔐 登录</a>
+            </div>
+        </div>
+    </nav>
+    
     <div class="container">
         <div class="header">
             <h1>🎓 ECJTU 学生成绩分析系统</h1>
