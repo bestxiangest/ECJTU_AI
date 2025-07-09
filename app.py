@@ -8,29 +8,79 @@ import dashscope
 from http import HTTPStatus
 import threading
 import time
+from dotenv import load_dotenv
+import os
+import logging
+from functools import wraps
+
+# 加载环境变量
+load_dotenv()
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('app.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = 'ecjtu_secret_key_2024'  # 用于session管理
+
+# 配置管理
+class Config:
+    SECRET_KEY = os.getenv('SECRET_KEY', 'ecjtu_secret_key_2024')
+    AL_API_KEY = os.getenv('AL_API_KEY', 'sk-dcbb7246ac3f402994454b91120b95ab')
+    FLASK_ENV = os.getenv('FLASK_ENV', 'development')
+    CONVERSATION_TIMEOUT = int(os.getenv('CONVERSATION_TIMEOUT', '60'))
+
+app.config.from_object(Config)
+app.secret_key = app.config['SECRET_KEY']
 
 # 启用CORS
 CORS(app)
 
 # 阿里云API KEY
-AL_API_KEY = 'sk-dcbb7246ac3f402994454b91120b95ab'
-dashscope.api_key = AL_API_KEY
+dashscope.api_key = app.config['AL_API_KEY']
 
 # 用于存储每个用户的对话历史和上次交互时间
 conversations = {}
 last_interaction = {}
 conversation_lock = threading.Lock()
 
-# 定义对话超时时间（秒）
-CONVERSATION_TIMEOUT = 60
-
 # 全局变量存储当前登录的客户端
 current_client = None
 current_student_id = None
 current_password = None
+
+# 装饰器：登录验证
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in') or not current_client:
+            logger.warning(f"未授权访问: {request.endpoint}")
+            return jsonify({
+                "success": False,
+                "message": "请先登录"
+            }), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+# 装饰器：错误处理
+def handle_errors(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"接口 {request.endpoint} 发生错误: {str(e)}")
+            return jsonify({
+                "success": False,
+                "message": f"服务器错误: {str(e)}"
+            }), 500
+    return decorated_function
 
 
 @app.route('/')
@@ -44,53 +94,51 @@ def login_page():
     return render_template('login.html')
 
 @app.route('/login', methods=['POST'])
+@handle_errors
 def login():
     """处理登录请求"""
     global current_client, current_student_id, current_password
     
-    try:
-        data = request.get_json()
-        student_id = data.get('student_id')
-        password = data.get('password')
-        
-        if not student_id or not password:
-            return jsonify({
-                "success": False,
-                "message": "请填写完整的学号和密码"
-            }), 400
-        
-        # 尝试创建ECJTU客户端并登录
-        try:
-            client = ECJTU(stud_id=student_id, password=password)
-            client.login()
-            
-            # 登录成功，保存到全局变量和session
-            current_client = client
-            current_student_id = student_id
-            current_password = password
-            
-            session['student_id'] = student_id
-            session['logged_in'] = True
-            
-            return jsonify({
-                "success": True,
-                "message": "登录成功",
-                "student_id": student_id
-            })
-            
-        except Exception as login_error:
-            print(f"登录失败: {login_error}")
-            return jsonify({
-                "success": False,
-                "message": "学号或密码错误，请检查后重试"
-            }), 401
-            
-    except Exception as e:
-        print(f"登录处理错误: {e}")
+    data = request.get_json()
+    student_id = data.get('student_id')
+    password = data.get('password')
+    
+    logger.info(f"用户尝试登录: {student_id}")
+    
+    if not student_id or not password:
+        logger.warning(f"登录失败 - 缺少必要参数: student_id={student_id}, password={'***' if password else None}")
         return jsonify({
             "success": False,
-            "message": "服务器错误，请稍后重试"
-        }), 500
+            "message": "学号和密码不能为空"
+        }), 400
+    
+    # 尝试创建ECJTU客户端并登录
+    try:
+        client = ECJTU(stud_id=student_id, password=password)
+        client.login()
+        
+        # 登录成功，保存到全局变量和session
+        current_client = client
+        current_student_id = student_id
+        current_password = password
+        
+        session['student_id'] = student_id
+        session['logged_in'] = True
+        
+        logger.info(f"用户登录成功: {student_id}")
+        
+        return jsonify({
+            "success": True,
+            "message": "登录成功",
+            "student_id": student_id
+        })
+        
+    except Exception as login_error:
+        logger.error(f"用户 {student_id} 登录失败: {login_error}")
+        return jsonify({
+            "success": False,
+            "message": "学号或密码错误，请检查后重试"
+        }), 401
 
 @app.route('/dashboard')
 def dashboard():
@@ -100,17 +148,28 @@ def dashboard():
     
     return render_template('dashboard.html')
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
+@handle_errors
 def logout():
-    """退出登录"""
+    """用户登出接口"""
     global current_client, current_student_id, current_password
     
-    session.clear()
+    logged_out_user = current_student_id
+    
+    # 清除全局变量
     current_client = None
     current_student_id = None
     current_password = None
     
-    return redirect(url_for('login_page'))
+    # 清除session
+    session.clear()
+    
+    logger.info(f"用户登出: {logged_out_user}")
+    
+    return jsonify({
+        "success": True,
+        "message": "已成功登出"
+    })
 
 @app.route('/api')
 def api_info():
@@ -128,54 +187,43 @@ def api_info():
 
 
 @app.route('/api/scores')
+@login_required
+@handle_errors
 def get_scores_api():
     """获取学生成绩的API接口"""
     global current_client, current_student_id
     
-    # 检查登录状态
-    if not session.get('logged_in') or not current_client:
-        return jsonify({
-            "success": False,
-            "message": "请先登录"
-        }), 401
+    logger.info(f"用户 {current_student_id} 请求获取成绩数据")
     
+    # 入学时间
+    enrollment_time = int(current_student_id[0:4])
+    logger.info(f"入学时间: {enrollment_time}")
+
+    # 获取所有成绩
+    all_scores = get_all_scores(current_client, enrollment_time)
+    
+    # 获取学生真实GPA
     try:
-        # 入学时间
-        enrollment_time = int(current_student_id[0:4])
-        print(f"入学时间: {enrollment_time}")
+        gpa_info = current_client.gpa.today()
+        student_gpa = gpa_info.gpa
+        logger.info(f"获取到学生GPA: {student_gpa}")
+    except Exception as gpa_error:
+        logger.warning(f"获取GPA失败: {gpa_error}")
+        student_gpa = "未获取到"
 
-        # 获取所有成绩
-        all_scores = get_all_scores(current_client, enrollment_time)
-        
-        # 获取学生真实GPA
-        try:
-            gpa_info = current_client.gpa.today()
-            student_gpa = gpa_info.gpa
-            print(f"获取到学生GPA: {student_gpa}")
-        except Exception as gpa_error:
-            print(f"获取GPA失败: {gpa_error}")
-            student_gpa = "未获取到"
+    # 构建返回的JSON数据
+    result = {
+        "success": True,
+        "message": "成绩获取成功",
+        "student_id": current_student_id,
+        "enrollment_year": enrollment_time,
+        "total_semesters": len(all_scores),
+        "GPA": student_gpa,
+        "data": all_scores
+    }
 
-        # 构建返回的JSON数据
-        result = {
-            "success": True,
-            "message": "成绩获取成功",
-            "student_id": current_student_id,
-            "enrollment_year": enrollment_time,
-            "total_semesters": len(all_scores),
-            "GPA": student_gpa,
-            "data": all_scores
-        }
-
-        return jsonify(result)
-
-    except Exception as e:
-        error_result = {
-            "success": False,
-            "message": f"获取成绩失败: {str(e)}",
-            "data": None
-        }
-        return jsonify(error_result), 500
+    logger.info(f"成功返回 {len(all_scores)} 个学期的成绩数据")
+    return jsonify(result)
 
 
 def get_all_scores(client, start_year):
@@ -290,9 +338,9 @@ def call_qwen(messages):
     """调用通义千问 API"""
     try:
         responses = dashscope.Generation.call(
-            api_key=AL_API_KEY,
+            api_key=app.config['AL_API_KEY'],
             # model="qwen2.5-14b-instruct-1m", # 聪明一点
-            model="qwen-turbo",  # 速度最快
+            model="qwen-turbo-latest",  # 速度最快
             messages=messages,
             result_format='message',
             stream=True,  # 设置输出方式为流式输出
@@ -333,118 +381,135 @@ def handle_ai_response(user_id, qwen_response):
 
 
 @app.route('/api/analyze', methods=['GET', 'POST'])
+@login_required
+@handle_errors
 def analyze_scores():
-    """分析学生成绩的API接口"""
+    """AI分析学生成绩"""
     global current_client, current_student_id
     
-    # 检查登录状态
-    if not session.get('logged_in') or not current_client:
-        return jsonify({
-            "success": False,
-            "message": "请先登录"
-        }), 401
+    logger.info(f"用户 {current_student_id} 请求AI成绩分析")
     
-    try:
-        # 检查是否通过POST传递了成绩数据
-        if request.method == 'POST' and request.json and 'scores_data' in request.json:
-            # 使用传递的成绩数据
-            scores_data = request.json['scores_data']
-            print("使用前端传递的成绩数据，避免重复调用API")
-        else:
-            # 获取学生成绩数据（兼容GET请求）
-            enrollment_time = int(current_student_id[0:4])
-            all_scores = get_all_scores(current_client, enrollment_time)
-            
-            if not all_scores:
-                return jsonify({
-                    "success": False,
-                    "message": "未找到成绩数据",
-                    "data": None
-                }), 404
-            
-            # 获取学生真实GPA
-            try:
-                gpa_info = current_client.gpa.today()
-                student_gpa = gpa_info.gpa
-                print(f"获取到学生GPA: {student_gpa}")
-            except Exception as gpa_error:
-                print(f"获取GPA失败: {gpa_error}")
-                student_gpa = "未获取到"
-            
-            # 构建发送给AI的成绩数据
-            scores_data = {
-                "student_id": current_student_id,
-                "enrollment_year": enrollment_time,
-                "total_semesters": len(all_scores),
-                "GPA": student_gpa,
-                "data": all_scores
-            }
+    # 检查是否通过POST传递了成绩数据
+    if request.method == 'POST' and request.json and 'scores_data' in request.json:
+        # 使用传递的成绩数据
+        scores_data = request.json['scores_data']
+        logger.info("使用前端传递的成绩数据，避免重复调用API")
+    else:
+        # 获取学生成绩数据（兼容GET请求）
+        enrollment_time = int(current_student_id[0:4])
+        all_scores = get_all_scores(current_client, enrollment_time)
         
-        # 将成绩数据转换为JSON字符串发送给AI
-        scores_json = json.dumps(scores_data, ensure_ascii=False, indent=2)
-        
-        # 构建AI对话消息
-        messages = [
-            {'role': 'system', 'content': PROMPT},
-            {'role': 'user', 'content': f"请分析以下学生成绩数据：\n{scores_json}"}
-        ]
-        
-        # 调用AI分析
-        ai_response = call_qwen(messages)
-        
-        if ai_response:
-            try:
-                # 尝试解析AI返回的JSON
-                analysis_result = json.loads(ai_response)
-                return jsonify({
-                    "success": True,
-                    "message": "成绩分析完成",
-                    "raw_scores": scores_data,
-                    "analysis": analysis_result
-                })
-            except json.JSONDecodeError:
-                # 如果AI返回的不是有效JSON，返回原始文本
-                return jsonify({
-                    "success": True,
-                    "message": "成绩分析完成（文本格式）",
-                    "raw_scores": scores_data,
-                    "analysis_text": ai_response
-                })
-        else:
+        if not all_scores:
             return jsonify({
                 "success": False,
-                "message": "AI分析失败，请稍后重试",
-                "raw_scores": scores_data
-            }), 500
-            
-    except Exception as e:
+                "message": "未找到成绩数据",
+                "data": None
+            }), 404
+        
+        # 获取学生真实GPA
+        try:
+            gpa_info = current_client.gpa.today()
+            student_gpa = gpa_info.gpa
+            logger.info(f"获取到学生GPA: {student_gpa}")
+        except Exception as gpa_error:
+            logger.warning(f"获取GPA失败: {gpa_error}")
+            student_gpa = "未获取到"
+        
+        # 构建发送给AI的成绩数据
+        scores_data = {
+            "student_id": current_student_id,
+            "enrollment_year": enrollment_time,
+            "total_semesters": len(all_scores),
+            "GPA": student_gpa,
+            "data": all_scores
+        }
+        
+    # 将成绩数据转换为JSON字符串发送给AI
+    scores_json = json.dumps(scores_data, ensure_ascii=False, indent=2)
+    
+    # 构建AI对话消息
+    messages = [
+        {'role': 'system', 'content': PROMPT},
+        {'role': 'user', 'content': f"请分析以下学生成绩数据：\n{scores_json}"}
+    ]
+    
+    # 调用AI分析
+    ai_response = call_qwen(messages)
+    
+    if ai_response:
+        try:
+            # 尝试解析AI返回的JSON
+            analysis_result = json.loads(ai_response)
+            return jsonify({
+                "success": True,
+                "message": "成绩分析完成",
+                "raw_scores": scores_data,
+                "analysis": analysis_result
+            })
+        except json.JSONDecodeError:
+            # 如果AI返回的不是有效JSON，返回原始文本
+            return jsonify({
+                "success": True,
+                "message": "成绩分析完成（文本格式）",
+                "raw_scores": scores_data,
+                "analysis_text": ai_response
+            })
+    else:
         return jsonify({
             "success": False,
-            "message": f"分析过程中发生错误: {str(e)}",
-            "data": None
+            "message": "AI分析失败，请稍后重试",
+            "raw_scores": scores_data
         }), 500
 
 
+def cleanup_conversations():
+    """清理超时的对话历史"""
+    current_time = time.time()
+    timeout = app.config['CONVERSATION_TIMEOUT']
+    
+    with conversation_lock:
+        expired_keys = []
+        for key, last_time in last_interaction.items():
+            if current_time - last_time > timeout:
+                expired_keys.append(key)
+        
+        for key in expired_keys:
+            if key in conversations:
+                del conversations[key]
+            if key in last_interaction:
+                del last_interaction[key]
+            logger.info(f"清理过期对话: {key}")
+        
+        if expired_keys:
+            logger.info(f"清理了 {len(expired_keys)} 个过期对话")
+
+
 @app.route('/ai', methods=['POST'])
+@handle_errors
 def chat():
-    user_id = request.remote_addr  # 使用客户端 IP 作为用户标识符
-    user_message = request.json.get('message')
-
+    """AI聊天接口"""
+    data = request.get_json()
+    user_message = data.get('message', '')
+    user_id = data.get('user_id', 'default')
+    
+    logger.info(f"用户 {user_id} 发送消息: {user_message[:50]}...")
+    
     if not user_message:
-        return jsonify({"error": "请求中缺少 'message' 字段"}), 400
-
+        logger.warning(f"用户 {user_id} 发送空消息")
+        return jsonify({"error": "消息不能为空"}), 400
+    
     with conversation_lock:
         current_time = time.time()
-
+        
         # 检查用户是否已存在对话，以及是否超时
         if user_id in conversations:
-            if current_time - last_interaction.get(user_id, 0) > CONVERSATION_TIMEOUT:
+            if current_time - last_interaction.get(user_id, 0) > app.config['CONVERSATION_TIMEOUT']:
                 # 对话超时，重新开始
                 conversations[user_id] = [{
                     'role': 'system',
                     'content': PROMPT
                 }]
-                print(f"用户 {user_id} 的对话已超时，已重置。")
+                logger.info(f"用户 {user_id} 的对话已超时，已重置")
             last_interaction[user_id] = current_time
         else:
             # 新用户，创建新的对话
@@ -453,26 +518,104 @@ def chat():
                 'content': PROMPT
             }]
             last_interaction[user_id] = current_time
-            print(f"为用户 {user_id} 创建新的对话。")
+            logger.info(f"为用户 {user_id} 创建新的对话")
 
         # 将用户的消息添加到对话历史
         conversations[user_id].append({'role': 'user', 'content': user_message})
-
-        # 调用通义千问 API
+        
+        # 调用通义千问API
         qwen_response = call_qwen(conversations[user_id])
-
+        
         if qwen_response:
             conversations[user_id].append({'role': 'assistant', 'content': qwen_response})
-            print(jsonify({"response": qwen_response}))
+            logger.info(f"AI成功响应用户 {user_id}")
             # 将大模型回答传给处理函数
             final = handle_ai_response(user_id, qwen_response)
-            return final, 200
+            return jsonify({"response": final})
         else:
             # 如果调用失败，移除用户刚刚发送的消息，保持对话历史的完整性
             conversations[user_id].pop()
-            print(jsonify({"error": "调用通义千问 API 失败，请稍后重试"}), 500)
+            logger.error(f"用户 {user_id} 的AI调用失败")
             return jsonify({"error": "调用通义千问 API 失败，请稍后重试"}), 500
 
 
+# 健康检查接口
+@app.route('/health')
+def health_check():
+    """系统健康检查接口"""
+    try:
+        # 检查基本系统状态
+        status = {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0",
+            "environment": app.config['FLASK_ENV'],
+            "active_conversations": len(conversations),
+            "api_key_configured": bool(app.config['AL_API_KEY'])
+        }
+        
+        # 检查AI API连接（可选）
+        if app.config['AL_API_KEY']:
+            try:
+                # 简单的API测试
+                test_messages = [{'role': 'user', 'content': 'test'}]
+                response = call_qwen(test_messages)
+                status["ai_api_status"] = "connected" if response else "disconnected"
+            except Exception as e:
+                status["ai_api_status"] = f"error: {str(e)}"
+                status["status"] = "degraded"
+        
+        return jsonify(status), 200
+        
+    except Exception as e:
+        logger.error(f"健康检查失败: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
+# 系统信息接口
+@app.route('/api/system/info')
+@handle_errors
+def system_info():
+    """获取系统信息"""
+    import psutil
+    import platform
+    
+    try:
+        info = {
+            "system": {
+                "platform": platform.system(),
+                "python_version": platform.python_version(),
+                "cpu_count": psutil.cpu_count(),
+                "memory_total": psutil.virtual_memory().total,
+                "memory_available": psutil.virtual_memory().available
+            },
+            "application": {
+                "active_conversations": len(conversations),
+                "uptime": time.time() - app.start_time if hasattr(app, 'start_time') else 0
+            }
+        }
+        return jsonify(info)
+    except ImportError:
+        # 如果psutil未安装，返回基本信息
+        return jsonify({
+            "system": {
+                "platform": platform.system(),
+                "python_version": platform.python_version()
+            },
+            "application": {
+                "active_conversations": len(conversations)
+            }
+        })
+
 if __name__ == '__main__':
-    app.run()
+    # 记录应用启动时间
+    app.start_time = time.time()
+    
+    logger.info("ECJTU成绩查询与分析系统启动")
+    logger.info(f"环境: {app.config['FLASK_ENV']}")
+    logger.info(f"API密钥已配置: {bool(app.config['AL_API_KEY'])}")
+    
+    app.run(debug=True, host='0.0.0.0', port=5000)
