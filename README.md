@@ -86,7 +86,7 @@ ECJTU 成绩查询与分析系统是一个现代化的 Web 应用，为华东交
 
 1. **克隆项目**
 ```bash
-git clone <repository-url>
+git clone https://github.com/bestxiangest/ECJTU_AI.git
 cd ECJTU_AI
 ```
 
@@ -482,7 +482,7 @@ def system_info():
 
 如有问题或建议，请通过以下方式联系：
 - 提交 GitHub Issue
-- 发送邮件至项目维护者
+- 发送邮件至[项目维护者](zzningg@qq.com)
 
 ---
 
