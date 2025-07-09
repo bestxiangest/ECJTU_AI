@@ -230,10 +230,24 @@ def get_all_scores(client, start_year):
     """获取从指定年份开始的所有学期成绩，返回按学期分组的JSON格式数据"""
     scores_by_semester = {}
     current_year = datetime.now().year
+    current_month = datetime.now().month
+    current_day = datetime.now().day
+    
+    # 判断当前学期
+    if current_month >= 9:  # 9月后为第一学期
+        current_semester = 1
+    elif current_month >= 2:  # 2-8月为第二学期
+        current_semester = 2
+    else:  # 1月为上一年第二学期
+        current_year -= 1
+        current_semester = 2
 
     # 从入学年份开始遍历所有可能的学期
     for year in range(start_year, current_year + 1):
         for semester in [1, 2]:
+            # 跳过未来学期
+            if year == current_year and semester > current_semester:
+                continue
             semester_str = f"{year}.{semester}"
             try:
                 scores = client.scores.filter(semester=semester_str)
