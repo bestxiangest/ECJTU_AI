@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ECJTU 学生成绩分析系统 - 仪表板</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -426,8 +426,11 @@
 
         async function loadScoresData() {
             try {
-                const response = await axios.get('/api/scores');
-                scoresData = response.data;
+                const response = await fetch('/api/scores');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                scoresData = await response.json();
                 
                 if (scoresData.success) {
                     updateStats();
@@ -446,15 +449,25 @@
                 // 如果已有成绩数据，通过POST传递避免重复调用
                 let response;
                 if (scoresData && scoresData.success) {
-                    response = await axios.post('/api/analyze', {
-                        scores_data: scoresData
+                    response = await fetch('/api/analyze', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            scores_data: scoresData
+                        })
                     });
                     console.log('使用已缓存的成绩数据进行AI分析');
                 } else {
                     // 兜底方案：使用GET请求
-                    response = await axios.get('/api/analyze');
+                    response = await fetch('/api/analyze');
                 }
-                analysisData = response.data;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                analysisData = await response.json();
                 
                 document.getElementById('analysisLoading').style.display = 'none';
                 

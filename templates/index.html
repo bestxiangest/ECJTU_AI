@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ECJTU 学生成绩分析系统</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -313,8 +313,11 @@
         async function loadScores() {
             showLoading();
             try {
-                const response = await axios.get('/api/scores');
-                scoresData = response.data;
+                const response = await fetch('/api/scores');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                scoresData = await response.json();
                 
                 if (scoresData.success) {
                     showMessage('成绩数据加载成功！');
@@ -333,8 +336,11 @@
         async function analyzeScores() {
             showLoading();
             try {
-                const response = await axios.get('/api/analyze');
-                analysisData = response.data;
+                const response = await fetch('/api/analyze');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                analysisData = await response.json();
                 
                 if (analysisData.success) {
                     showMessage('AI分析完成！');
