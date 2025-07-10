@@ -263,6 +263,7 @@
             // 显示加载状态
             loginBtn.disabled = true;
             loginBtn.textContent = '登录中...';
+            sessionStorage.setItem('student_id', studentId);
             loading.style.display = 'block';
             message.style.display = 'none';
             
@@ -282,11 +283,11 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showMessage('登录成功！正在跳转到课程表...', 'success');
+                    showMessage('登录成功！正在跳转到成绩分析...', 'success');
                     // 延迟跳转，让用户看到成功消息
                     setTimeout(() => {
-                        window.location.href = '/schedule';
-                    }, 1500);
+                        window.location.href = '/dashboard';
+                    }, 1000);
                 } else {
                     showMessage(result.message || '登录失败，请检查学号和密码', 'error');
                 }

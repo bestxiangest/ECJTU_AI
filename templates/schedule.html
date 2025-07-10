@@ -399,7 +399,7 @@
 <body>
     <nav class="navbar">
         <div class="container">
-            <h1>📅 ECJTU 课程表系统</h1>
+            <h1>📅 花椒课程表</h1>
             <div class="nav-links">
                 <a href="/dashboard">📊 成绩分析</a>
                 <a href="/schedule">📅 课程表</a>
@@ -474,6 +474,7 @@
         window.onload = function() {
             const studentId = sessionStorage.getItem('student_id') || '未知';
             document.getElementById('studentInfo').textContent = `学号: ${studentId}`;
+            loadSchedule();
         };
 
         function logout() {
@@ -607,6 +608,7 @@
             // 显示课程表
             const tableBody = document.getElementById('scheduleTableBody');
             const semesterData = scheduleData.data[semester];
+            console.log(semesterData);
             
             tableBody.innerHTML = '';
             
